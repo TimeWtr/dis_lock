@@ -207,6 +207,8 @@ func (l *Lock) AutoRefresh(ctx context.Context, interval, expiration time.Durati
 	for {
 		select {
 		case <-ticker.C:
+			return ctx.Err()
+		case <-ticker.C:
 			// 自动刷新
 			// 超时后重试
 			if maxCounter > 0 && counter >= maxCounter {
@@ -214,7 +216,7 @@ func (l *Lock) AutoRefresh(ctx context.Context, interval, expiration time.Durati
 				return ErrMaxRetryFailed
 			}
 			counter++
-			cnt, err := l.client.Eval(ctx, refreshScript, []string{l.key}, l.id, expiration.Seconds()).Int64()
+			cnt, err := l.client.Eval(context.Background(), refreshScript, []string{l.key}, l.id, expiration.Seconds()).Int64()
 			if errors.Is(err, context.DeadlineExceeded) {
 				// 网络问题超时
 				retryCh <- struct{}{}
@@ -237,7 +239,7 @@ func (l *Lock) AutoRefresh(ctx context.Context, interval, expiration time.Durati
 				return ErrMaxRetryFailed
 			}
 			counter++
-			cnt, err := l.client.Eval(ctx, refreshScript, []string{l.key}, l.id, expiration.Seconds()).Int64()
+			cnt, err := l.client.Eval(context.Background(), refreshScript, []string{l.key}, l.id, expiration.Seconds()).Int64()
 			if errors.Is(err, context.DeadlineExceeded) {
 				// 网络问题超时
 				retryCh <- struct{}{}
