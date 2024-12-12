@@ -355,7 +355,75 @@ func TestLock_e2e_Refresh(t *testing.T) {
 				client:     rdb,
 				expiration: time.Second * 30,
 			}
-			err := lock.Refresh(context.Background())
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			err := lock.Refresh(ctx)
+			assert.Equal(t, tc.wantErr, err)
+			if err != nil {
+				t.Logf("续约失败，错误为: %s\n", err.Error())
+				return
+			}
+			tc.after(t)
+		})
+	}
+}
+
+func TestLock_e2e_AutoRefresh(t *testing.T) {
+	rdb := redis.NewClient(&redis.Options{
+		Network: "tcp",
+		Addr:    "81.70.197.7:6379",
+	})
+
+	testCases := []struct {
+		name       string
+		key        string
+		id         string
+		before     func(t *testing.T)
+		after      func(t *testing.T)
+		expiration time.Duration
+		wantErr    error
+	}{
+		{
+			name:    "refresh error",
+			key:     "key1",
+			id:      "123456",
+			before:  func(t *testing.T) {},
+			after:   func(t *testing.T) {},
+			wantErr: context.DeadlineExceeded,
+		},
+		{
+			name: "refresh success",
+			key:  "key1",
+			id:   "123456",
+			before: func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				res, err := rdb.Set(ctx, "key1", "123456", 10*time.Second).Result()
+				assert.NoError(t, err)
+				assert.Equal(t, "OK", res)
+			},
+			after: func(t *testing.T) {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				cnt, err := rdb.Del(ctx, "key1").Result()
+				assert.NoError(t, err)
+				assert.Equal(t, int64(1), cnt)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			tc.before(t)
+			lock := &Lock{
+				key:        "key1",
+				id:         "123456",
+				client:     rdb,
+				expiration: time.Second * 30,
+			}
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			err := lock.AutoRefresh(ctx, 10*time.Millisecond, time.Second)
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
 				t.Logf("续约失败，错误为: %s\n", err.Error())
