@@ -5,7 +5,7 @@ package distributed_lock
 import (
 	"context"
 	"encoding/json"
-	"github.com/go-redis/redis/v8"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
@@ -14,7 +14,7 @@ import (
 func TestLock_e2e_Lock(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Network: "tcp",
-		Addr:    "101.42.33.194:6379",
+		Addr:    "81.70.197.7:6379",
 	})
 
 	client := NewClient(rdb)
@@ -127,7 +127,7 @@ func TestLock_e2e_Lock(t *testing.T) {
 func TestLock_2e2_TryLock(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Network: "tcp",
-		Addr:    "101.42.33.194:6379",
+		Addr:    "81.70.197.7:6379",
 	})
 
 	type Info struct {
@@ -249,7 +249,7 @@ func TestLock_2e2_TryLock(t *testing.T) {
 func TestLock_e2e_UnLock(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Network: "tcp",
-		Addr:    "101.42.33.194:6379",
+		Addr:    "81.70.197.7:6379",
 	})
 
 	testCases := []struct {
@@ -264,9 +264,10 @@ func TestLock_e2e_UnLock(t *testing.T) {
 			before: func(t *testing.T) {},
 			after:  func(t *testing.T) {},
 			lock: &Lock{
-				key:    "key1",
-				id:     "123456",
-				client: rdb,
+				key:     "key1",
+				id:      "123456",
+				client:  rdb,
+				closeCh: make(chan struct{}),
 			},
 			wantErr: ErrLockNotExist,
 		},
@@ -281,9 +282,10 @@ func TestLock_e2e_UnLock(t *testing.T) {
 			},
 			after: func(t *testing.T) {},
 			lock: &Lock{
-				key:    "key1",
-				id:     "123456",
-				client: rdb,
+				key:     "key1",
+				id:      "123456",
+				client:  rdb,
+				closeCh: make(chan struct{}),
 			},
 		},
 	}
@@ -303,7 +305,7 @@ func TestLock_e2e_UnLock(t *testing.T) {
 func TestLock_e2e_Refresh(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
 		Network: "tcp",
-		Addr:    "101.42.33.194:6379",
+		Addr:    "81.70.197.7:6379",
 	})
 
 	testCases := []struct {
@@ -356,7 +358,7 @@ func TestLock_e2e_Refresh(t *testing.T) {
 			err := lock.Refresh(context.Background())
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
-				t.Logf("续约失败")
+				t.Logf("续约失败，错误为: %s\n", err.Error())
 				return
 			}
 			tc.after(t)

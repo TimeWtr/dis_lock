@@ -3,10 +3,10 @@ package distributed_lock
 import (
 	"context"
 	"errors"
-	"github.com/go-redis/redis/v8"
+	mcs "github.com/TimeWtr/dis_lock/mocks"
 	"github.com/golang/mock/gomock"
+	"github.com/redis/go-redis/v9"
 	"github.com/stretchr/testify/assert"
-	"go_tool/mocks"
 	"testing"
 	"time"
 )
@@ -25,7 +25,7 @@ func TestLock_TryLock(t *testing.T) {
 		{
 			name: "set nx context deadline",
 			mock: func(ctrl *gomock.Controller) redis.Cmdable {
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				res := redis.NewBoolResult(false, context.DeadlineExceeded)
 				cmd.EXPECT().
 					SetNX(context.Background(), "key1", gomock.Any(), time.Minute).
@@ -43,7 +43,7 @@ func TestLock_TryLock(t *testing.T) {
 		{
 			name: "set nx preempt lock error",
 			mock: func(ctrl *gomock.Controller) redis.Cmdable {
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				res := redis.NewBoolResult(false, nil)
 				cmd.EXPECT().SetNX(context.Background(), "key1", "123456", time.Minute).
 					Return(res)
@@ -61,7 +61,7 @@ func TestLock_TryLock(t *testing.T) {
 		{
 			name: "set nx success",
 			mock: func(ctrl *gomock.Controller) redis.Cmdable {
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				res := redis.NewBoolResult(true, nil)
 				cmd.EXPECT().SetNX(context.Background(), "key1", "123456", time.Minute).
 					Return(res)
@@ -108,7 +108,7 @@ func TestLock_UnLock(t *testing.T) {
 			key:  "key1",
 			id:   "123456",
 			client: func(ctrl *gomock.Controller) redis.Cmdable {
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				res := redis.NewCmd(context.Background())
 				res.SetErr(context.DeadlineExceeded)
 				cmd.EXPECT().Eval(context.Background(), unlockScript, []string{"key1"}, "123456").
@@ -122,7 +122,7 @@ func TestLock_UnLock(t *testing.T) {
 			key:  "key1",
 			id:   "123456",
 			client: func(ctrl *gomock.Controller) redis.Cmdable {
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				res := redis.NewCmd(context.Background())
 				res.SetVal(int64(0))
 				cmd.EXPECT().Eval(context.Background(), unlockScript, []string{"key1"}, "123456").
@@ -136,7 +136,7 @@ func TestLock_UnLock(t *testing.T) {
 			key:  "key1",
 			id:   "123456",
 			client: func(ctrl *gomock.Controller) redis.Cmdable {
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				res := redis.NewCmd(context.Background())
 				res.SetVal(int64(1))
 				cmd.EXPECT().Eval(context.Background(), unlockScript, []string{"key1"}, "123456").
@@ -178,7 +178,7 @@ func TestLock_Refresh(t *testing.T) {
 			mock: func(ctrl *gomock.Controller) redis.Cmdable {
 				res := redis.NewCmd(context.Background())
 				res.SetErr(context.DeadlineExceeded)
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				cmd.EXPECT().Eval(context.Background(), refreshScript, []string{"key1"},
 					"123456", float64(60)).Return(res)
 				return cmd
@@ -193,7 +193,7 @@ func TestLock_Refresh(t *testing.T) {
 			mock: func(ctrl *gomock.Controller) redis.Cmdable {
 				res := redis.NewCmd(context.Background())
 				res.SetVal(int64(0))
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				cmd.EXPECT().Eval(context.Background(), refreshScript, []string{"key1"},
 					"123456", float64(60)).Return(res)
 				return cmd
@@ -208,7 +208,7 @@ func TestLock_Refresh(t *testing.T) {
 			mock: func(ctrl *gomock.Controller) redis.Cmdable {
 				res := redis.NewCmd(context.Background())
 				res.SetVal(int64(1))
-				cmd := mocks.NewMockCmdable(ctrl)
+				cmd := mcs.NewMockCmdable(ctrl)
 				cmd.EXPECT().Eval(context.Background(), refreshScript, []string{"key1"},
 					"123456", float64(60)).Return(res)
 				return cmd
