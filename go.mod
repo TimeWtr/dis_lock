@@ -1,4 +1,4 @@
-module github.com/quanhui-li/dis_lock
+module github.com/TimeWtr/dis_lock
 
 go 1.23.4
 
