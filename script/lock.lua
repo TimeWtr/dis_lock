@@ -5,8 +5,8 @@ if value == false then
 elseif value == ARGV[1] then
     -- 上次抢锁成功了
     redis.call('expire', KEYS[1], ARGV[2])
-    return "OK"
+    return 'OK'
 else
     -- 锁被别人持有
-    return ""
+    return ''
 end

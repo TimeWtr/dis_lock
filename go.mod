@@ -3,7 +3,6 @@ module github.com/TimeWtr/dis_lock
 go 1.23.4
 
 require (
-	github.com/go-redis/redis/v8 v8.11.5
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/redis/go-redis/v9 v9.7.0

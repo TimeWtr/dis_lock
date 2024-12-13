@@ -64,16 +64,18 @@ func (c *Client) TryLock(ctx context.Context, key, val string, expiration time.D
 }
 
 // Lock 申请分布式锁，内部会重试抢锁
-func (c *Client) Lock(ctx context.Context, key, val string, expiration time.Duration, retry RetryStrategy) (*Lock, error) {
+func (c *Client) Lock(ctx context.Context, key, val string, expiration, timeout time.Duration, retry RetryStrategy) (*Lock, error) {
 	var timer *time.Timer
 	for {
 		// 重试抢锁
-		res, err := c.client.Eval(ctx, lockScript, []string{key}, val, expiration.Seconds()).Result()
+		lctx, cancel := context.WithTimeout(ctx, timeout)
+		res, err := c.client.Eval(lctx, lockScript, []string{key}, val, expiration.Seconds()).Result()
+		cancel()
 		if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 			return nil, err
 		}
 
-		if res == "OK" {
+		if res == "OK" || res == "EXPIRE OK" {
 			return &Lock{
 				client:     c.client,
 				key:        key,
@@ -153,6 +155,7 @@ func (l *Lock) UnLock(ctx context.Context) error {
 			close(l.closeCh)
 		})
 	}()
+
 	// 分布式场景下多条命令不符合原子操作，所以需要用到lua脚本
 	res, err := l.client.Eval(ctx, unlockScript, []string{l.key}, l.id).Int64()
 	if err != nil {
@@ -189,7 +192,7 @@ func (l *Lock) Refresh(ctx context.Context) error {
 // ctx context.Context 上下文
 // interval time.Duration 轮询的时间间隔
 // expiration time.Duration 分布式锁的单次续约时间
-func (l *Lock) AutoRefresh(ctx context.Context, interval, expiration time.Duration, maxRetry ...int) error {
+func (l *Lock) AutoRefresh(ctx context.Context, interval, expiration, timeout time.Duration, maxRetry ...int) error {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	retryCh := make(chan struct{}, 1)
@@ -204,8 +207,6 @@ func (l *Lock) AutoRefresh(ctx context.Context, interval, expiration time.Durati
 	}
 	counter := 0
 
-	ctx1, cancel := context.WithTimeout(ctx, time.Second)
-	defer cancel()
 	for {
 		select {
 		case <-ctx.Done():
@@ -217,8 +218,11 @@ func (l *Lock) AutoRefresh(ctx context.Context, interval, expiration time.Durati
 				// 设置了最大次数且重试次数已达到最大次数
 				return ErrMaxRetryFailed
 			}
+
 			counter++
-			cnt, err := l.client.Eval(ctx1, refreshScript, []string{l.key}, l.id, expiration.Seconds()).Int64()
+			lctx, cancel := context.WithTimeout(ctx, timeout)
+			cnt, err := l.client.Eval(lctx, refreshScript, []string{l.key}, l.id, expiration.Seconds()).Int64()
+			cancel()
 			if errors.Is(err, context.DeadlineExceeded) {
 				// 网络问题超时
 				retryCh <- struct{}{}
@@ -241,7 +245,9 @@ func (l *Lock) AutoRefresh(ctx context.Context, interval, expiration time.Durati
 				return ErrMaxRetryFailed
 			}
 			counter++
-			cnt, err := l.client.Eval(ctx1, refreshScript, []string{l.key}, l.id, expiration.Seconds()).Int64()
+			lctx, cancel := context.WithTimeout(ctx, timeout)
+			cnt, err := l.client.Eval(lctx, refreshScript, []string{l.key}, l.id, expiration.Seconds()).Int64()
+			cancel()
 			if errors.Is(err, context.DeadlineExceeded) {
 				// 网络问题超时
 				retryCh <- struct{}{}

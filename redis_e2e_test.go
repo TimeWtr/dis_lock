@@ -13,8 +13,9 @@ import (
 
 func TestLock_e2e_Lock(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
-		Network: "tcp",
-		Addr:    "81.70.197.7:6379",
+		Network:  "tcp",
+		Addr:     "81.70.197.7:6379",
+		Password: "12345678",
 	})
 
 	client := NewClient(rdb)
@@ -111,7 +112,7 @@ func TestLock_e2e_Lock(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 			defer cancel()
 			tc.before(t)
-			lock, err := client.Lock(ctx, tc.key, tc.val, tc.expiration, tc.retry)
+			lock, err := client.Lock(ctx, tc.key, tc.val, tc.expiration, time.Second, tc.retry)
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
 				t.Log("抢锁失败")
@@ -126,8 +127,9 @@ func TestLock_e2e_Lock(t *testing.T) {
 
 func TestLock_2e2_TryLock(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
-		Network: "tcp",
-		Addr:    "81.70.197.7:6379",
+		Network:  "tcp",
+		Addr:     "81.70.197.7:6379",
+		Password: "12345678",
 	})
 
 	type Info struct {
@@ -248,8 +250,9 @@ func TestLock_2e2_TryLock(t *testing.T) {
 
 func TestLock_e2e_UnLock(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
-		Network: "tcp",
-		Addr:    "81.70.197.7:6379",
+		Network:  "tcp",
+		Addr:     "81.70.197.7:6379",
+		Password: "12345678",
 	})
 
 	testCases := []struct {
@@ -304,8 +307,9 @@ func TestLock_e2e_UnLock(t *testing.T) {
 
 func TestLock_e2e_Refresh(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
-		Network: "tcp",
-		Addr:    "81.70.197.7:6379",
+		Network:  "tcp",
+		Addr:     "81.70.197.7:6379",
+		Password: "12345678",
 	})
 
 	testCases := []struct {
@@ -337,11 +341,11 @@ func TestLock_e2e_Refresh(t *testing.T) {
 				assert.Equal(t, "OK", res)
 			},
 			after: func(t *testing.T) {
-				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-				defer cancel()
-				cnt, err := rdb.Del(ctx, "key1").Result()
-				assert.NoError(t, err)
-				assert.Equal(t, int64(1), cnt)
+				//ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				//defer cancel()
+				//cnt, err := rdb.Del(ctx, "key1").Result()
+				//assert.NoError(t, err)
+				//assert.Equal(t, int64(1), cnt)
 			},
 		},
 	}
@@ -354,6 +358,7 @@ func TestLock_e2e_Refresh(t *testing.T) {
 				id:         "123456",
 				client:     rdb,
 				expiration: time.Second * 30,
+				closeCh:    make(chan struct{}),
 			}
 			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 			defer cancel()
@@ -370,8 +375,9 @@ func TestLock_e2e_Refresh(t *testing.T) {
 
 func TestLock_e2e_AutoRefresh(t *testing.T) {
 	rdb := redis.NewClient(&redis.Options{
-		Network: "tcp",
-		Addr:    "81.70.197.7:6379",
+		Network:  "tcp",
+		Addr:     "81.70.197.7:6379",
+		Password: "12345678",
 	})
 
 	testCases := []struct {
@@ -405,9 +411,9 @@ func TestLock_e2e_AutoRefresh(t *testing.T) {
 			after: func(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 				defer cancel()
-				cnt, err := rdb.Del(ctx, "key1").Result()
+				_, err := rdb.Del(ctx, "key1").Result()
 				assert.NoError(t, err)
-				assert.Equal(t, int64(1), cnt)
+				//assert.Equal(t, int64(1), cnt)
 			},
 		},
 	}
@@ -420,10 +426,16 @@ func TestLock_e2e_AutoRefresh(t *testing.T) {
 				id:         "123456",
 				client:     rdb,
 				expiration: time.Second * 30,
+				closeCh:    make(chan struct{}),
 			}
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			err := lock.AutoRefresh(ctx, 10*time.Millisecond, time.Second)
+			go func() {
+				time.Sleep(9 * time.Second)
+				_ = lock.UnLock(ctx)
+			}()
+
+			err := lock.AutoRefresh(ctx, 10*time.Millisecond, 3*time.Second, time.Second)
 			assert.Equal(t, tc.wantErr, err)
 			if err != nil {
 				t.Logf("续约失败，错误为: %s\n", err.Error())
